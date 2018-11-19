@@ -1,5 +1,5 @@
-# SVM for pulse discrimination in PyTorch (Work In Progress)
-Support Vector Machine (SVM) for neutron-gamma pulse discrimination
+# SVM for pulse shape discrimination in PyTorch (Work In Progress)
+Support Vector Machine (SVM) for neutron-gamma pulse shape discrimination
 
 ## Brief Background and Introduction
 Pulse Shape Discrimination is a problem where one tries to distinguish pulses based on a measured signal. In this case, we are trying to distinguish between neutron and gamma rays from a signal that contains both of them. If this were to be implemented into a machine learning problem, the optimal approach would be to use pure neutron rays and pure gamma rays as a training set. However, as far as my knowledge goes, it is not possible to obtain these pure signals. Therefore, we rely on a theoretical assumption that can be used to identify the neutron and gamma rays. This assumption has a threshold in which it the higher the threshold, the more distinguishable the two rays are. Therefore we will use this assumption with a high threshold as our training set, and the same assumption with a lower threshold as our validation set.
