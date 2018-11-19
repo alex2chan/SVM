@@ -8,4 +8,5 @@ Now we have a classification problem involving just 2 classes, neutron and gamma
 
 ## Installation
 Download the necessary neutron and gamma pulse data in https://www.dropbox.com/sh/sklqbrd7gvq6azz/AABCExrGTyESctHbs1eQO4m6a?dl=0.
+
 Install pytorch and execute "python main.py" at the command line.
