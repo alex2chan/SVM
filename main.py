@@ -1,9 +1,11 @@
 import argparse
 import numpy as np
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
+import seaborn as sns
 from torch.utils.data import Dataset, DataLoader
 
 # For debugging, will be removed in the final version:
@@ -51,7 +53,7 @@ class LinearSVM(nn.Module):
         return h
 
 
-def get_data():
+def get_data(args):
     # Gamma pulses
     gamma_loose = 'forML_gamma_LOOSE.txt'
     gamma_tight = 'forML_gamma_TIGHT.txt'
@@ -63,23 +65,21 @@ def get_data():
     neutron_supertight = 'forML_neutron_SUPERTIGHT.txt'
 
     # Training Dataset
-    input_pulses_fname = [gamma_loose, gamma_tight, neutron_loose, neutron_tight]
+    input_pulses_fname = [gamma_supertight, neutron_supertight]
     input_pulses = []
     input_class = []
     for fname in input_pulses_fname:
-        input_pulses += read_data(fname, args.tnum)['pulses']
-        # input_pulses = (input_pulses - input_pulses.mean()) / input_pulses.std()
-        input_class += read_data(fname, args.tnum)['class']
+        input_pulses += read_data(fname, args.tnum / len(input_pulses_fname))['pulses']
+        input_class += read_data(fname, args.tnum / len(input_pulses_fname))['class']
         input_training_data = {'pulses': Normalization(input_pulses), 'class': input_class}
 
     # Validation Dataset
-    validation_pulses_fname = [gamma_supertight, neutron_supertight]
+    validation_pulses_fname = [gamma_loose, gamma_tight, neutron_loose, neutron_tight]
     validation_pulses = []
     validation_class = []
     for fname in validation_pulses_fname:
-        validation_pulses += read_data(fname, args.vnum)['pulses']
-        # validation_pulses = (validation_pulses - validation_pulses.mean()) / validation_pulses.std()
-        validation_class += read_data(fname, args.vnum)['class']
+        validation_pulses += read_data(fname, args.vnum / len(validation_pulses_fname))['pulses']
+        validation_class += read_data(fname, args.vnum / len(validation_pulses_fname))['class']
         validation_training_data = {'pulses': Normalization(validation_pulses), 'class': validation_class}
 
     # Datasets and Loaders ready for training
@@ -154,7 +154,8 @@ def train(model, data_loader, args):
 
 def validation(model, data_loader, args):
     model.eval()
-    output_data = []
+    correct_predictions = args.vnum
+    actual_predictions_clamped = []
 
     for i, data in enumerate(data_loader):
 
@@ -168,14 +169,34 @@ def validation(model, data_loader, args):
 
         output = model(input_pulses)
 
-        # Take data from output
-        output_data.append(output)
+        # Comparing output data and class
+        output_data = output.data.cpu().numpy()[0][0]
+        classes_data = classes.data.cpu().numpy()[0]
 
-        print("pulse:{} class:{} predicted_class:{}".format(i + 1, classes.data.cpu().numpy()[0], output.data.cpu().numpy()[0][0]))
+        output_data_class = np.sign(output_data)
+        if output_data_class != classes_data:
+            correct_predictions -= 1
+
+        confidence = 1
+        if output_data > -1 and output_data < 1:
+            confidence = np.absolute(output_data)
+
+        actual_predictions_clamped.append(np.clip(output_data, -1, 1))
+
+        print("pulse:{:>4}| class:{:>4}| predicted class:{:>4}| actual prediction:{:>+.4f}| confidence:{:>.2%}"
+              .format(i + 1, classes_data, output_data_class, output_data, confidence))
+
+    print("\nAccuracy for {} pulses: {:.2%}".format(args.vnum, correct_predictions / args.vnum))
+    return np.asarray(actual_predictions_clamped)
 
 
 def main(args):
-    train_loader, validation_loader = get_data()
+    # Data Retrieval and Loading
+    start_time = time.time()
+    print("Retrieving data...")
+    train_loader, validation_loader = get_data(args)
+    get_data_time = time.time()
+    print("Data Loaded Successfully!\t Time Elapsed:{:.3f}secs\n".format(get_data_time - start_time))
 
     # Training
     model = LinearSVM()
@@ -184,10 +205,39 @@ def main(args):
 
     print("Training...")
     train(model, train_loader, args)
+    training_time = time.time()
+    print("End of training\t Training Time:{:.3f}secs\n".format(training_time - get_data_time))
 
     # Testing
     print("Validating...")
-    validation(model, validation_loader, args)
+    confidence_levels = validation(model, validation_loader, args)
+    validation_time = time.time()
+    print("End of validation\t Validation Time:{:.3f}secs\n".format(validation_time - training_time))
+    print("Total Time Elapsed:{:.3f}secs".format(time.time() - start_time))
+
+    # Plotting
+    # x = np.linspace(-1, 1, len(confidence_levels))
+    # plt.plot(x, norm.pdf(confidence_levels), 'r-', lw=2, alpha=0.6, label='norm pdf')
+    # plt.hist(confidence_levels, 100, facecolor='green', alpha=0.75)
+    f, axes = plt.subplots(1, 2)
+
+    sns.distplot(confidence_levels, hist=True, kde=False, norm_hist=False,
+                 bins=1000, color='darkblue',
+                 hist_kws={'edgecolor': 'black'},
+                 kde_kws={'linewidth': 2, 'bw': 0.25}, ax=axes[0])
+    axes[0].set_ylabel("Count")
+    axes[0].set_xlabel("Confidence")
+    axes[0].set_title("Neutron = 1, Gamma = -1")
+
+    sns.distplot(confidence_levels, hist=False, kde=True, norm_hist=False,
+                 bins=1000, color='darkblue',
+                 hist_kws={'edgecolor': 'black'},
+                 kde_kws={'linewidth': 2, 'bw': 0.25}, ax=axes[1])
+    axes[1].set_ylabel("Density")
+    axes[1].set_xlabel("Confidence")
+    axes[1].set_title("Neutron = 1, Gamma = -1")
+
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -197,8 +247,8 @@ if __name__ == "__main__":
     parser.add_argument("--tbs", type=int, default=10, help='training batch size')
     parser.add_argument("--vbs", type=int, default=1, help='validation batch size')
     parser.add_argument("--epoch", type=int, default=30, help='number of epochs')
-    parser.add_argument("--tnum", type=int, default=100, help='number of pulses to be read for training')
-    parser.add_argument("--vnum", type=int, default=100, help='number of pulses to be read for validation')
+    parser.add_argument("--tnum", type=int, default=500, help='number of pulses to be read for training')
+    parser.add_argument("--vnum", type=int, default=1000, help='number of pulses to be read for validation')
     parser.add_argument("--ve", type=int, default=30, help='validation at epoch')
     args = parser.parse_args()
 
