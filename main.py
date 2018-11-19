@@ -138,7 +138,7 @@ def train(model, data_loader, args):
             optimizer.zero_grad()
             output = model(input_pulses)
 
-            # Loss Function: Need to understand this...
+            # Loss Function:
             loss = torch.mean(torch.clamp(1 - output.t() * classes, min=0))  # hinge loss
             loss += args.c * torch.mean(model.fc.weight ** 2)  # l2 penalty
             loss.backward()
