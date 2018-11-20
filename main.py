@@ -12,15 +12,6 @@ from torch.utils.data import Dataset, DataLoader
 import pdb
 
 
-'''
-TO DO:
-
-(Maybe later on) Putting functions into separate files
-Fix training in batches and displaying
-
-'''
-
-
 class PSD_Dataset(Dataset):
     """ A class to convert the input data into tensors
         and store them in a Dataset object so that it
@@ -66,20 +57,22 @@ def get_data(args):
 
     # Training Dataset
     input_pulses_fname = [gamma_supertight, neutron_supertight]
+    print("Training Database: {}".format(input_pulses_fname))
     input_pulses = []
     input_class = []
     for fname in input_pulses_fname:
-        input_pulses += read_data(fname, args.tnum / len(input_pulses_fname))['pulses']
-        input_class += read_data(fname, args.tnum / len(input_pulses_fname))['class']
+        input_pulses += read_data(fname, int(args.tnum / len(input_pulses_fname)))['pulses']
+        input_class += read_data(fname, int(args.tnum / len(input_pulses_fname)))['class']
         input_training_data = {'pulses': Normalization(input_pulses), 'class': input_class}
 
     # Validation Dataset
     validation_pulses_fname = [gamma_loose, gamma_tight, neutron_loose, neutron_tight]
+    print("Validation Database: {}".format(validation_pulses_fname))
     validation_pulses = []
     validation_class = []
     for fname in validation_pulses_fname:
-        validation_pulses += read_data(fname, args.vnum / len(validation_pulses_fname))['pulses']
-        validation_class += read_data(fname, args.vnum / len(validation_pulses_fname))['class']
+        validation_pulses += read_data(fname, int(args.vnum / len(validation_pulses_fname)))['pulses']
+        validation_class += read_data(fname, int(args.vnum / len(validation_pulses_fname)))['class']
         validation_training_data = {'pulses': Normalization(validation_pulses), 'class': validation_class}
 
     # Datasets and Loaders ready for training
@@ -87,6 +80,8 @@ def get_data(args):
     validation_dataset = PSD_Dataset(validation_training_data)
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.tbs, shuffle=True)
     validation_loader = DataLoader(dataset=validation_dataset, batch_size=args.vbs, shuffle=False)
+
+    print_args(args)
 
     return train_loader, validation_loader
 
@@ -122,11 +117,12 @@ def read_data(filename, limit):
 def train(model, data_loader, args):
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
     model.train()
+    print("CNN Model: {}".format(model.__class__.__name__))
+    print("Optimizer: {}".format(optimizer.__class__.__name__))
 
     for epoch in range(args.epoch):
         sum_loss = 0
         for i, data in enumerate(data_loader):
-
             input_pulses = data['pulses']
             classes = data['class']
 
@@ -146,10 +142,7 @@ def train(model, data_loader, args):
             optimizer.step()
             sum_loss += loss.data.cpu().numpy()
 
-            # if (i + 1) % 1 == 0:
-            #     print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f' % (epoch + 1, num_epochs, i + 1, len(train_dataset) // train_batch_size, sum_loss))
-
-        print("Epoch:{:4d}\tloss:{}".format(epoch + 1, sum_loss / len(data['class'])))
+        print("Epoch [{}/{}], Loss: {}".format(epoch + 1, args.epoch, sum_loss / args.tnum))
 
 
 def validation(model, data_loader, args):
@@ -190,36 +183,12 @@ def validation(model, data_loader, args):
     return np.asarray(actual_predictions_clamped)
 
 
-def main(args):
-    # Data Retrieval and Loading
-    start_time = time.time()
-    print("Retrieving data...")
-    train_loader, validation_loader = get_data(args)
-    get_data_time = time.time()
-    print("Data Loaded Successfully!\t Time Elapsed:{:.3f}secs\n".format(get_data_time - start_time))
-
-    # Training
-    model = LinearSVM()
-    if torch.cuda.is_available():
-        model.cuda()
-
-    print("Training...")
-    train(model, train_loader, args)
-    training_time = time.time()
-    print("End of training\t Training Time:{:.3f}secs\n".format(training_time - get_data_time))
-
-    # Testing
-    print("Validating...")
-    confidence_levels = validation(model, validation_loader, args)
-    validation_time = time.time()
-    print("End of validation\t Validation Time:{:.3f}secs\n".format(validation_time - training_time))
-    print("Total Time Elapsed:{:.3f}secs".format(time.time() - start_time))
-
-    # Plotting
+def plot(confidence_levels):
     # x = np.linspace(-1, 1, len(confidence_levels))
     # plt.plot(x, norm.pdf(confidence_levels), 'r-', lw=2, alpha=0.6, label='norm pdf')
     # plt.hist(confidence_levels, 100, facecolor='green', alpha=0.75)
     f, axes = plt.subplots(1, 2)
+    f.set_size_inches(9, 6)
 
     sns.distplot(confidence_levels, hist=True, kde=False, norm_hist=False,
                  bins=1000, color='darkblue',
@@ -240,24 +209,68 @@ def main(args):
     plt.show()
 
 
+def print_args(args):
+    print("Training Dataset Size: {}".format(args.tnum))
+    print("Training Batch Size: {}".format(args.tbs))
+    print("Validation Dataset Size: {}".format(args.vnum))
+    print("Validation Batch Size: {}".format(args.vbs))
+    print("No. of Epochs: {}".format(args.epoch))
+    print("Learning Rate: {}".format(args.lr))
+    print("Regularization: {}".format(args.c))
+
+
+def main(args):
+    # Data Retrieval and Loading
+    start_time = time.time()
+    print("Retrieving data...")
+    train_loader, validation_loader = get_data(args)
+    get_data_time = time.time()
+    print("Data Loaded Successfully!\nData Loading Time: {:.3f} secs\n".format(get_data_time - start_time))
+
+    # Training
+    model = LinearSVM()
+    if torch.cuda.is_available():
+        model.cuda()
+
+    print("Training...")
+    train(model, train_loader, args)
+    training_time = time.time()
+    print("End of training\nTraining Time: {:.3f} secs\n".format(training_time - get_data_time))
+
+    # Testing
+    print("Validating...")
+    confidence_levels = validation(model, validation_loader, args)
+    validation_time = time.time()
+    print("End of validation\nValidation Time: {:.3f} secs\n".format(validation_time - training_time))
+    print("Total Time Elapsed: {:.3f}secs\n".format(time.time() - start_time))
+    print("{0:-^31}\n".format("END"))
+
+    # Plotting
+    plot(confidence_levels)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--c", type=float, default=0.01, help='regularization')
     parser.add_argument("--lr", type=float, default=0.01, help='learning_rate')
     parser.add_argument("--tbs", type=int, default=10, help='training batch size')
     parser.add_argument("--vbs", type=int, default=1, help='validation batch size')
-    parser.add_argument("--epoch", type=int, default=30, help='number of epochs')
+    parser.add_argument("--epoch", type=int, default=10, help='number of epochs')
     parser.add_argument("--tnum", type=int, default=500, help='number of pulses to be read for training')
-    parser.add_argument("--vnum", type=int, default=1000, help='number of pulses to be read for validation')
+    parser.add_argument("--vnum", type=int, default=100, help='number of pulses to be read for validation')
     parser.add_argument("--ve", type=int, default=30, help='validation at epoch')
     args = parser.parse_args()
 
     """
     Usage in command line: python main.py
 
+    Usage Examples:
     To change hyper parameters simply type the two dashes followed by the parameter you want to change for e.g.:
     To change learning rate: python main.py --lr 0.0001
     To change number of epochs: python main.py --epoch 30
+
+    To write the results to a text file: python main.py > filename.txt
+    To write the results and append the same file: python main.py >> filename.txt
 
     For help in the available parameters to change: python main.py --help
 
