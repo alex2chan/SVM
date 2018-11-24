@@ -1,4 +1,4 @@
-# SVM for pulse shape discrimination in PyTorch (Work In Progress)
+# SVM for pulse shape discrimination in PyTorch
 Support Vector Machine (SVM) for neutron-gamma pulse shape discrimination
 
 ## Brief Background and Introduction
