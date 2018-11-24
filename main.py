@@ -72,12 +72,14 @@ def validation(model, data_loader, args):
         if output_data > -1 and output_data < 1:
             confidence = np.absolute(output_data)
 
+        # Restricting predictions between -1 and 1 for plotting
         actual_predictions_clamped.append(np.clip(output_data, -1, 1))
 
         print("pulse:{:>4}| class:{:>4}| predicted class:{:>4}| actual prediction:{:>+.4f}| confidence:{:>.2%}"
               .format(i + 1, classes_data, output_data_class, output_data, confidence))
 
     print("\nAccuracy for {} pulses: {:.2%}".format(args.vnum, correct_predictions / args.vnum))
+
     return np.asarray(actual_predictions_clamped)
 
 
@@ -85,6 +87,7 @@ def plot(confidence_levels):
     f, axes = plt.subplots(1, 2)
     f.set_size_inches(9, 6)
 
+    # Histogram
     sns.distplot(confidence_levels, hist=True, kde=False, norm_hist=False,
                  bins=1000, color='darkblue',
                  hist_kws={'edgecolor': 'black'},
@@ -93,6 +96,7 @@ def plot(confidence_levels):
     axes[0].set_xlabel("Confidence")
     axes[0].set_title("Neutron = 1, Gamma = -1")
 
+    # KDE (Kernel Density Estimate)
     sns.distplot(confidence_levels, hist=False, kde=True, norm_hist=False,
                  bins=1000, color='darkblue',
                  hist_kws={'edgecolor': 'black'},
@@ -120,7 +124,10 @@ def main(args):
     print("Retrieving data...")
     train_loader, validation_loader = get_data(args)
     get_data_time = time.time()
-    print("Data Loaded Successfully!\nData Loading Time: {:.3f} secs\n".format(get_data_time - start_time))
+
+    # Printing Experiment Details
+    print_args(args)
+    print("Data Loaded Successfully!\nData Processing Time: {:.3f} secs\n".format(get_data_time - start_time))
 
     # Training
     model = LinearSVM()

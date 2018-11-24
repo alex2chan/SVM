@@ -1,13 +1,12 @@
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from main import print_args
 
 
 class PSD_Dataset(Dataset):
-    """ A class to convert the input data into tensors in torch
+    """ A class to convert the input data into torch tensors
         and store them in a Dataset object so that it
-        can be read later by a torch's Dataloader function.
+        can be read later by torch's Dataloader function.
     """
 
     def __init__(self, data):
@@ -25,8 +24,14 @@ class PSD_Dataset(Dataset):
 
 
 def read_data(filename, limit):
+    """ In the data .txt file each line is a pulse containing 240 elements.
+        This function reads the data and stores the pulses into a list then into a dictionary
+        Then by classifying neutrons into '1' and gammas into '-1',
+        the pulses are 'labelled' according to where they came from by putting another key called 'class'.
+
+        The 'limit' is the amount of pulses to be read.
+    """
     with open(filename, 'r') as file:
-        # Reading and double checking all lines to have 240 elements
         data_list = [list(map(int, lines.split())) for i, lines in enumerate(file.readlines()) if len(lines.split()) == 240 and i < limit]
         # The above single line is equivalent to the following:
         # data_list = []
@@ -34,7 +39,7 @@ def read_data(filename, limit):
         #     if len(lines.split()) == 240 and i < limit:
         #         data_list.append(list(map(int, lines.split)))
 
-        # Classifying neutrons into '1' and gammas into '-1' and putting them into a dictionary
+        # Classification
         if 'neutron' in filename:
             data_dict = {'pulses': data_list, 'class': np.ones(len(data_list)).tolist()}
         elif 'gamma' in filename:
@@ -44,15 +49,22 @@ def read_data(filename, limit):
 
 
 def Normalization(data):
-    # Input data is list type -> Output data is list type
+    """ Normalizes the pulse data of size N-by-240.
+        Therefore getting the mean and standard deviation by rows (axis=1).
+        Normalization: (pulse - mean)    / standard deviation
+                 Size: ((N,240) - (N,1)) / (N,1)
+    """
     pulse = np.asarray(data)
-    pulse_mean = np.mean(pulse, axis=1)
-    pulse_std = np.std(pulse, axis=1)
-    data_normalized = (((pulse.transpose() - pulse_mean) / pulse_std).transpose()).tolist()
+    pulse_mean = np.mean(pulse, axis=1)[:, None]
+    pulse_std = np.std(pulse, axis=1)[:, None]
+    data_normalized = ((pulse - pulse_mean) / pulse_std).tolist()
     return data_normalized
 
 
 def get_data(args):
+    """ Gets the data in .txt, reads it, normalizes the pulses, stores it into a dictionary,
+        gets converted into torch tensors and finally stored in a Dataloader
+    """
     # Gamma pulses
     gamma_loose = 'forML_gamma_LOOSE.txt'
     gamma_tight = 'forML_gamma_TIGHT.txt'
@@ -88,8 +100,5 @@ def get_data(args):
     validation_dataset = PSD_Dataset(validation_data)
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.tbs, shuffle=True)
     validation_loader = DataLoader(dataset=validation_dataset, batch_size=args.vbs, shuffle=False)
-
-    # Printing Experiment Details
-    print_args(args)
 
     return train_loader, validation_loader
