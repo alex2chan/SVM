@@ -13,6 +13,8 @@ from model import LinearSVM
 
 
 def train(model, data_loader, args):
+    """ Function for training the data. """
+
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
     model.train()
     print("CNN Model: {}".format(model.__class__.__name__))
@@ -44,6 +46,8 @@ def train(model, data_loader, args):
 
 
 def validation(model, data_loader, args):
+    """ Function for validating the data. """
+
     model.eval()
     correct_predictions = args.vnum
     actual_predictions_clamped = []
@@ -84,8 +88,12 @@ def validation(model, data_loader, args):
 
 
 def plot(confidence_levels):
+    """ Plotting of confidence levels to see the distribution
+        of pulses that have been classified. Accurate classification
+        would result in having two sharp peaks at 1 and -1.
+    """
+
     f, axes = plt.subplots(1, 2)
-    f.set_size_inches(9, 6)
 
     # Histogram
     sns.distplot(confidence_levels, hist=True, kde=False, norm_hist=False,
@@ -109,6 +117,8 @@ def plot(confidence_levels):
 
 
 def print_args(args):
+    """ Printing of argument values for reference. """
+
     print("Training Dataset Size: {}".format(args.tnum))
     print("Training Batch Size: {}".format(args.tbs))
     print("Validation Dataset Size: {}".format(args.vnum))
@@ -119,6 +129,8 @@ def print_args(args):
 
 
 def main(args):
+    """ Main function to be executed. """
+
     # Data Processing
     start_time = time.time()
     print("Retrieving data...")
@@ -158,7 +170,7 @@ if __name__ == "__main__":
     parser.add_argument("--tbs", type=int, default=10, help='training batch size')
     parser.add_argument("--vbs", type=int, default=1, help='validation batch size')
     parser.add_argument("--epoch", type=int, default=10, help='number of epochs')
-    parser.add_argument("--tnum", type=int, default=500, help='number of pulses to be read for training')
+    parser.add_argument("--tnum", type=int, default=1000, help='number of pulses to be read for training')
     parser.add_argument("--vnum", type=int, default=100, help='number of pulses to be read for validation')
     parser.add_argument("--ve", type=int, default=30, help='validation at epoch')
     args = parser.parse_args()
